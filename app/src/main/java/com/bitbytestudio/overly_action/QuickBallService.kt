@@ -24,6 +24,7 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import kotlin.math.roundToInt
 
 /**
  * A reusable LifecycleOwner for Compose views in Services or other non-Activity contexts
@@ -146,6 +147,14 @@ class QuickBallService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        val ballSizeDp = 40f
+        val paddingDp = 8f
+
+        val metrics = resources.displayMetrics
+        val density = metrics.density
+        val ballPx = (ballSizeDp * density).roundToInt()
+        val paddingPx = (paddingDp * density).roundToInt()
+
         params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
@@ -157,21 +166,22 @@ class QuickBallService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 0
-            y = 100
+            x = (metrics.widthPixels - ballPx - paddingPx)
+            y = ((metrics.heightPixels - ballPx) / 2)
         }
 
         try {
             wm.addView(overlayView, params)
-            Log.d(TAG, "View added to WindowManager")
             overlayView?.post {
                 overlayView?.setContent {
                     QuickBallComposeHost(
                         overlayView = overlayView!!,
                         params = params,
                         windowManager = wm,
+                        matrices = metrics,
+                        ballSize = ballSizeDp,
+                        edgePadding = paddingDp,
                         onRequestClose = {
-                            Log.d(TAG, "Close requested")
                             stopSelf()
                         }
                     )
@@ -182,9 +192,7 @@ class QuickBallService : Service() {
             lifecycleOwner.onStart()
             lifecycleOwner.onResume()
 
-            Log.d(TAG, "Overlay created successfully")
         } catch (e: Exception) {
-            Log.e(TAG, "Error creating overlay", e)
             e.printStackTrace()
         }
     }
@@ -198,7 +206,6 @@ class QuickBallService : Service() {
         super.onDestroy()
         Log.d(TAG, "Service onDestroy")
 
-        // Properly destroy lifecycle
         try {
             lifecycleOwner.onPause()
             lifecycleOwner.onStop()
@@ -207,7 +214,6 @@ class QuickBallService : Service() {
             Log.e(TAG, "Error destroying lifecycle", e)
         }
 
-        // Remove view
         overlayView?.let {
             try {
                 wm.removeView(it)
