@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.core.net.toUri
+import com.bitbytestudio.overly_action.ui.screens.QuickBallService
 
 class MainActivity : ComponentActivity() {
 
@@ -30,6 +31,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        checkAndRequestPermissions()
+
         setContent {
             MaterialTheme {
                 Surface {
@@ -37,8 +40,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-
-        checkAndRequestPermissions()
     }
 
     private fun checkAndRequestPermissions() {
