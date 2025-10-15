@@ -24,7 +24,7 @@ data class QuickBallUiState(
     val hidden: Boolean = false,
     val ballAlignment: Alignment = Alignment.CenterEnd,
     val alpha: Float = 1f,
-    val isRightSide: Boolean = false,
+    val isRightSide: Boolean = true,
     val shouldSnapToEdge: Boolean = false,
     val targetSnapX: Float = 0f
 )
@@ -76,7 +76,7 @@ class QuickBallViewModel : ViewModel() {
             navBarHeightPx = navBarHeightPx,
             ballPx = ballPx,
             menuPx = menuPx,
-            edgePadding = edgePadding
+            edgePadding = edgePadding,
         )
 
         val coercedX = initialX.coerceIn(minX, maxX)
@@ -94,18 +94,11 @@ class QuickBallViewModel : ViewModel() {
         val config = screenConfig ?: return
         val newExpanded = !_uiState.value.expanded
         val isRight = isRightSide()
-
         _uiState.value = _uiState.value.copy(
             hidden = false,
             expanded = newExpanded,
             isRightSide = isRight,
-            ballAlignment = if (isRight) {
-                Alignment.CenterEnd
-            } else {
-                Alignment.CenterStart
-            },
         )
-
         restartHideTimer()
     }
 
@@ -128,11 +121,6 @@ class QuickBallViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(
             posX = x,
             posY = y,
-//            ballAlignment = if (isRightSide()) {
-//                Alignment.CenterEnd
-//            } else {
-//                Alignment.CenterStart
-//            },
         )
     }
 
@@ -146,11 +134,14 @@ class QuickBallViewModel : ViewModel() {
             config.screenWidthPx - config.ballPx - config.edgePadding
         }
 
+        val isRight = isRightSide()
+
         _uiState.value = _uiState.value.copy(
             isDragging = false,
             shouldSnapToEdge = true,
             targetSnapX = targetX,
-            ballAlignment = if (isRightSide()) {
+            isRightSide = isRight,
+            ballAlignment = if (isRight) {
                 Alignment.CenterEnd
             } else {
                 Alignment.CenterStart

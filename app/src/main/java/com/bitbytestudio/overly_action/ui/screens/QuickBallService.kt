@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -96,7 +97,7 @@ class QuickBallService : Service() {
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
 
         createNotificationChannel()
-        startForeground(NOTIF_ID, makeNotification())
+        //startForeground(NOTIF_ID, makeNotification())
         lifecycleOwner.onCreate()
         lifecycleOwner.onStart()
 
@@ -175,6 +176,15 @@ class QuickBallService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            startForeground(
+                NOTIF_ID,
+                makeNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(NOTIF_ID, makeNotification())
+        }
         return START_STICKY
     }
 
@@ -213,10 +223,11 @@ class QuickBallService : Service() {
         return NotificationCompat.Builder(this, NOTIF_CHANNEL)
             .setContentTitle("QuickBall Active")
             .setContentText("Floating control is running")
-            .setSmallIcon(R.drawable.ic_media_play)
+            .setSmallIcon(R.drawable.stat_notify_voicemail)
             .setContentIntent(pi)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
             .setOngoing(true)
+            .setSilent(true)
             .build()
     }
 
@@ -228,6 +239,7 @@ class QuickBallService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Shows when QuickBall overlay is active"
+                setShowBadge(false)
             }
             getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
             Log.d(TAG, "Notification channel created")

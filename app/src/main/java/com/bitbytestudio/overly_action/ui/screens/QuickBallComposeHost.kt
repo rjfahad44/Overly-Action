@@ -9,14 +9,25 @@ import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntOffsetAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,15 +35,22 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AcUnit
+import androidx.compose.material.icons.filled.Adjust
+import androidx.compose.material.icons.filled.Attribution
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DataSaverOff
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
@@ -63,8 +81,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.bitbytestudio.overly_action.DeviceAdminReceiverImpl
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -90,7 +110,8 @@ fun QuickBallComposeHost(
     val uiState by viewModel.uiState.collectAsState()
 
     val ballPx = remember(density, ballSize) { with(density) { ballSize.dp.toPx() } }
-    val overlyViewSizePx = remember(density, overlyViewSize) { with(density) { overlyViewSize.dp.toPx() } }
+    val overlyViewSizePx =
+        remember(density, overlyViewSize) { with(density) { overlyViewSize.dp.toPx() } }
 
     val screenWidthPx = remember(matrices) { matrices.widthPixels.toFloat() }
     val screenHeightPx = remember(matrices) { matrices.heightPixels.toFloat() }
@@ -102,11 +123,11 @@ fun QuickBallComposeHost(
     val windowManagerState by rememberUpdatedState(windowManager)
     val onRequestCloseState by rememberUpdatedState(onRequestClose)
 
-    val initialX by remember { derivedStateOf { paramsState.x.toFloat() + edgePadding  } }
-    val initialY by remember { derivedStateOf { paramsState.y.toFloat() } }
+    val initialX = remember { paramsState.x.toFloat() + edgePadding }
+    val initialY = remember { paramsState.y.toFloat() }
 
-    val posXAnimatable by remember { derivedStateOf { Animatable(initialX) } }
-    val posYAnimatable by remember { derivedStateOf { Animatable(initialY) } }
+    val posXAnimatable = remember { Animatable(initialX) }
+    val posYAnimatable = remember { Animatable(initialY) }
 
     LaunchedEffect(Unit) {
         viewModel.initialize(
@@ -141,14 +162,14 @@ fun QuickBallComposeHost(
             if (!overlayViewState.isAttachedToWindow) return@remember
             try {
                 val p = paramsState
-                if (uiState.expanded){
+                if (uiState.expanded) {
                     val (x, y) = viewModel.getMenuPosition()
                     val ballSize = viewModel.getMenuSize()
                     p.x = x
                     p.y = y
                     p.width = ballSize
                     p.height = ballSize
-                }else{
+                } else {
                     p.x = posXAnimatable.value.roundToInt()
                     p.y = posYAnimatable.value.roundToInt()
                     val ballSize = viewModel.getBallSize()
@@ -186,15 +207,51 @@ fun QuickBallComposeHost(
         label = "ballAlpha"
     )
 
+    val ballHalfOffset by animateIntOffsetAsState(
+        targetValue = if (uiState.hidden) {
+            val halfBallSize = (ballPx / 2).toInt()
+            val ballHalfOutsideX = if (uiState.isRightSide) halfBallSize else -halfBallSize
+            IntOffset(x = ballHalfOutsideX, y = 0)
+        } else {
+            IntOffset(x = 0, y = 0)
+        },
+        animationSpec = tween(300),
+        label = "ballHalfOffset"
+    )
+
+    val infiniteTransition = rememberInfiniteTransition(label = "iconPulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scaleAnim"
+    )
+
     Box(
-        modifier = Modifier.fillMaxSize()
-            //.background(color = Color.Green),
+        modifier = Modifier
+            .fillMaxSize()
+            .offset { ballHalfOffset }
     ) {
-        if (uiState.expanded){
+        AnimatedVisibility(
+            visible = uiState.expanded,
+            enter = slideInHorizontally(
+                initialOffsetX = { fullWidth ->
+                    if (uiState.isRightSide) fullWidth
+                    else -fullWidth
+                }
+            ) + fadeIn(),
+            exit = slideOutHorizontally(
+                targetOffsetX = { fullWidth ->
+                    if (uiState.isRightSide) fullWidth
+                    else -fullWidth
+                }
+            ) + fadeOut()
+        ) {
             Box(
-                modifier = Modifier
-                    .size(overlyViewSize.dp)  // Menu size
-                    .align(uiState.ballAlignment)  // Same alignment as ball
+                modifier = Modifier.size(overlyViewSize.dp)
             ) {
                 RadialMenu(
                     isRightSide = uiState.isRightSide,
@@ -208,8 +265,9 @@ fun QuickBallComposeHost(
                         viewModel.restartHideTimer()
                     },
                     onClose = {
-                        viewModel.onClose()
-                        onRequestCloseState()
+                        viewModel.onBallClick()
+                        //viewModel.onClose()
+                        //onRequestCloseState()
                     }
                 )
             }
@@ -221,7 +279,7 @@ fun QuickBallComposeHost(
                 .align(uiState.ballAlignment)
                 .alpha(ballAlpha)
                 .clip(CircleShape)
-                .background(color = Color(0xFF2196F3))
+                .background(color = Color.Transparent)
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = {
@@ -230,8 +288,14 @@ fun QuickBallComposeHost(
                         onDrag = { change, dragAmount ->
                             change.consume()
                             coroutineScope.launch {
-                                val newX = (posXAnimatable.value + dragAmount.x).coerceIn(viewModel.minX, viewModel.maxX)
-                                val newY = (posYAnimatable.value + dragAmount.y).coerceIn(viewModel.minY, viewModel.maxY)
+                                val newX = (posXAnimatable.value + dragAmount.x).coerceIn(
+                                    viewModel.minX,
+                                    viewModel.maxX
+                                )
+                                val newY = (posYAnimatable.value + dragAmount.y).coerceIn(
+                                    viewModel.minY,
+                                    viewModel.maxY
+                                )
                                 posXAnimatable.snapTo(newX)
                                 posYAnimatable.snapTo(newY)
                             }
@@ -249,14 +313,17 @@ fun QuickBallComposeHost(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = if (uiState.expanded) Icons.Default.Close else Icons.Default.Settings,
+                imageVector = if (uiState.expanded) Icons.Default.Close else Icons.Default.Adjust,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier
+                    .size(24.dp)
+                    .scale(scale)
             )
         }
     }
 }
+
 
 @Composable
 fun RadialMenu(
@@ -280,7 +347,7 @@ fun RadialMenu(
             MenuButton("Brightness-", Icons.Default.DarkMode, Color(0xFFEF5350), onBrightnessDown),
             MenuButton("Volume+", Icons.Default.VolumeUp, Color(0xFF66BB6A), onVolumeUp),
             MenuButton("Volume-", Icons.Default.VolumeDown, Color(0xFF42A5F5), onVolumeDown),
-            MenuButton("Stop", Icons.Default.Stop, Color(0xFFFF1400), onClose),
+            MenuButton("Stop", Icons.Default.Close, Color(0xFFFF1400), onClose),
             MenuButton("Lock", Icons.Default.Lock, Color(0xFFAB47BC), onLock),
         )
     }
@@ -289,7 +356,7 @@ fun RadialMenu(
         modifier = Modifier
             .size((radius * 2.5f).dp)
             .offset(
-                x = if(isRightSide) (radius * 1.25f).dp else (-radius * 1.25f).dp,
+                x = if (isRightSide) (radius * 1.25f).dp else (-radius * 1.25f).dp,
                 y = 0.dp
             )
             .background(color = Color.White.copy(alpha = 0.3f), shape = CircleShape)
